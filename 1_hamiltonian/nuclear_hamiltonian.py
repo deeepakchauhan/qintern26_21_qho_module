@@ -8,9 +8,10 @@ NUCLEAR HAMILTONIAN ENGINE :
 
 """
 
-import qiskit
+import openfermion as of
+from openfermion import QubitOperator
 from qiskit.quantum_info import SparsePauliOp
-import numpy as np
+import numpy as np 
 
 
 
@@ -40,28 +41,6 @@ predefined_hamiltonians = {
 
 
 
-# ------------------------------ HELPER FUCNTIONS ------------------------------
-"""reusable string-builders that correctly handle Qiskit's qubit-ordering convention"""
-
-
-def _single_qubit_pauli(pauli_char, qubit_index, n_modes):
-    """Place one Pauli Character on qubit_index, and indentity on others"""
-
-    string = ["I"] * n_modes
-    string[n_modes - 1 - qubit_index] = pauli_char
-
-    return ''.join(string)
-
-def _two_qubit_pauli(pi, pj, i, j, n_modes):
-    """Place Pauli pi on qubit i and pj on qubit j, Identity elsewhere"""
-
-    string = ["I"] * n_modes
-    string[n_modes - 1 - i] = pi
-    string[n_modes - 1 - j] = pj
-
-    return ''.join(string)
-
-
 
 
 # ------------------------------ LAYER 1: FREE QHO ------------------------------
@@ -75,16 +54,44 @@ def build_free_qho(n_modes, omega=1.0):
         omega: float - oscillator frequency
 
     Returns:
-        SparsePauliOp
+        OpenFermion QubitOperator
     
     """
 
-    pauli_list = []
+    H = QubitOperator(n_modes, omega=1.0)
+
     for i in range(n_modes):
-        pauli_list.append(('I' * n_modes, omega/2.0))
-        pauli_list.append((_single_qubit_pauli('Z', i, n_modes), -omega / 2.0))
+        H += omega / 2.0 * QubitOperator("")
+        H += (-omega / 2.0) * QubitOperator(f"Z{i}")
+
+    return H
+    
+
+
+
+# ------------------------------ CONVERSION FUCNTION TO QISKIT ------------------------------
+def to_qiskit_validation_operator(openfermion_qubit_op, n_modes):
+
+    
+    """
+    For Validation / Exact Diagonalization checks only
+    - convert an openfermion operator to a Qiskit SparsePauliOp
+
+    """
+
+    pauli_list = []
+    for term, coeff in openfermion_qubit_op.terms.items()
+
+    pauli_str = ["I"] * n_modes
+
+    for qubit_idx, pauli_char in term:
+        pauli_str[n_modes - 1 - qubit_idx] = pauli_char
+
+    pauli_list.append((''.join(pauli_str), coeff))
+
 
     return SparsePauliOp.from_list(pauli_list).simplify()
+
 
 
 
@@ -100,18 +107,15 @@ def build_pairing_interaction(n_modes, coupling):
 
     """
 
-    pauli_list = []
+    H = QubitOperator()
+
     for i in range(n_modes):
-        for j in range(i+1, n_modes):
+        for j in range(i + 1, n_modes):
+            H += (-coupling / 2.0) * QubitOperator(f"X{i} X{j}")
+            H += (-coupling / 2.0) * QubitOperator(f"Y{i} Y{i}")
 
-            pauli_list.append(
-                (_two_qubit_pauli('X', 'X', i, j, n_modes), -coupling / 2.0)
-            )
-            pauli_list.append(
-                (_two_qubit_pauli('Y', 'Y', i, j, n_modes), -coupling / 2.0)
-            )
+    return H
 
-    return SparsePauliOp.from_list(pauli_list).simplify()
 
 
 
@@ -131,13 +135,13 @@ def build_spinorbit_interaction(n_modes, kappa):
 
     """
 
-    pauli_list = []
-    for i in range(n_modes):
-        pauli_list.append(
-                (_single_qubit_pauli('Z', i, n_modes), -kappa)
-        )
 
-    return SparsePauliOp.from_list(pauli_list).simplify()
+    H = QubitOperator()
+    for i in range(n_modes):
+        H += (-kappa) * QubitOperator(f"Z{i}")
+
+    return H 
+
 
 
 
@@ -171,10 +175,26 @@ def build_nuclear_hamiltonian(n_modes, omega=1.0, interactions=None, time=None):
             continue
 
         if term['type'] == 'pairing':
-            H = (H + build_pairing_interaction(n_modes, strength)).simplify()
+            H += build_pairing_interaction(n_modes, strength)
         elif term['type'] == 'spinorbit':
-            H= (H + build_spinorbit_interaction(n_modes, strength)).simplify()
+            H += build_spinorbit_interaction(n_modes, strength)
         else:
             raise ValueError(f"UNKNOWN INTERACTION TYPE: {term['type']}")
 
-    return H
+
+
+        # validation only checks Qiskit Conversion and exact diagonalization benchmarks
+
+        qiskit_op = to_qiskit_validation_operator(H, n_modes)
+        exact_eigenvalues = np.linalg.eigenvalsh(qiskit_op.to_matrix()).to_list()
+
+
+        metadata = {
+
+            "n_qubits": n_modes,
+            "n_terms" : len(H.terms),
+            "exact_eigenvalues": exact_eigenvalues,
+            "qiskit_validation_operator": qiskit_op,   
+        }
+
+    return H, metadata 
