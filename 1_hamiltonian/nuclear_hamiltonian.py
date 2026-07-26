@@ -1,5 +1,5 @@
 """
-NUCLEAR HAMILTONIAN ENGINE :
+------------------------------- NUCLEAR HAMILTONIAN ENGINE ------------------------------ :
 
 - Free QHO with n-modes and arbitrary 'w' : represents single particle basis
 - Pairing Interaction : represents the most universal hamiltonian
@@ -15,27 +15,37 @@ import numpy as np
 
 
 
-# ------------------------------ PREDEFINED HAMILTONIANS ------------------------------
+
+
+# ------------------------------ PREDEFINED HAMILTONIANS -----------------------------------
 predefined_hamiltonians = {
 
     'free_oscillators': {
         'parameters' : {'omega': 1.0},
         'n_modes'    : 2,
+        'phenomenon' : 'Nuclear Vibrartions at rest',
+        'time_dep'   : False,
     },
 
     'qho_pairing': {
         'parameters' : {'omega': 1.0, 'coupling': 0.5},
         'n_modes'    : 2,
+        'phenomenon' : 'Nuclear Pairing',
+        'time_dep'   : False,
     },
 
     'qho_spinorbit': {
         'parameter' : {'omega': 1.0, 'kappa': 0.1},
         'n_modes'   : 2,
+        'phenomenon': 'Nuclear Shell splitting',
+        'time_dep'  : False
     },
 
     'qho_full': {
         'parameter' : {'omega': 1.0, 'coupling': 0.5, 'kappa': 0.1},
         "n_modes"   : 2,
+        'phenomenon': 'Driven nuclear excitation',
+        'time_dep'  : True
     },
 }
 
@@ -43,7 +53,7 @@ predefined_hamiltonians = {
 
 
 
-# ------------------------------ LAYER 1: FREE QHO ------------------------------
+# ------------------------------ LAYER 1: FREE QHO ----------------------------------------
 def build_free_qho(n_modes, omega=1.0):
 
     """
@@ -69,7 +79,8 @@ def build_free_qho(n_modes, omega=1.0):
 
 
 
-# ------------------------------ CONVERSION FUCNTION TO QISKIT ------------------------------
+
+# ------------------------------ CONVERSION FUNCTION TO QISKIT ------------------------------
 def to_qiskit_validation_operator(openfermion_qubit_op, n_modes):
 
     
@@ -80,9 +91,9 @@ def to_qiskit_validation_operator(openfermion_qubit_op, n_modes):
     """
 
     pauli_list = []
-    for term, coeff in openfermion_qubit_op.terms.items()
+    for term, coeff in openfermion_qubit_op.terms.items():
 
-    pauli_str = ["I"] * n_modes
+        pauli_str = ["I"] * n_modes
 
     for qubit_idx, pauli_char in term:
         pauli_str[n_modes - 1 - qubit_idx] = pauli_char
@@ -146,7 +157,7 @@ def build_spinorbit_interaction(n_modes, kappa):
 
 
 
-# ------------------------------ FULL HAMILTONIAN: COMBINING ALL THE ABOVE LAYERS ------------------------------
+# ------------------------------ FULL HAMILTONIAN: COMBINING ALL THE ABOVE LAYERS ------------------------------------
 def build_nuclear_hamiltonian(n_modes, omega=1.0, interactions=None, time=None):
 
     """
@@ -198,3 +209,27 @@ def build_nuclear_hamiltonian(n_modes, omega=1.0, interactions=None, time=None):
         }
 
     return H, metadata 
+
+
+
+
+
+# ------------------------------ UTILITY: LIST PREDEFINED HAMILTONIANS ------------------------------
+
+def list_hamiltonians():
+
+    """
+    PRINT ALL AVAILABLE PREDEFINED HAMILTONIANS
+
+    """
+
+    print("AVAILABLE PREDEFINED HAMILTONIANS")
+    print("=" * 50)
+
+    for name, config in predefined_hamiltonians.items():
+
+        print(f"\n [{name}]")
+        print(f" Phenomenon : {config['phenomenon']}")
+        print(f" Parameters : {config['paramters']}")
+        print(f" Modes      : {config['n_modes']}")
+       
