@@ -13,6 +13,8 @@ import sympy
 import numpy as np 
 
 
+
+
 # ------------------------------ CIRQ ANSATZ ------------------------------
 
 def build_nuclear_ansatz(n_modes, reps=2):
@@ -33,6 +35,7 @@ def build_nuclear_ansatz(n_modes, reps=2):
 
     """
 
+
     qubits = cirq.LineQubit.range(n_modes)
     symbols = []
     moments = []            # group of gates that can all execute at the same time
@@ -51,21 +54,22 @@ def build_nuclear_ansatz(n_modes, reps=2):
             moments.append(cirq.CNOT(qubits[i], qubits[i+1]))
 
     circuit = cirq.Circuit(moments)
+
     return circuit, symbols, qubits
 
 
 
 
-# ------------------------------ QASM EXPORT ------------------------------
 
+# ------------------------------ QASM EXPORT ------------------------------
 def export_to_qasm2(cirq_circuit, filepath=None):
 
     """
-    Args
+    Args:
         cirq_circuit : unbound symbolic circuit
         filepath     : str or None - save the file if provided
 
-    Returns
+    Returns:
         qasm2_str : str (raw qasm string)
 
     """
@@ -81,8 +85,9 @@ def export_to_qasm2(cirq_circuit, filepath=None):
 
 
 
-# ------------------------------ PyQASM VALIDATION ------------------------------
 
+
+# ------------------------------ PyQASM VALIDATION ------------------------------
 def validate_with_pyqasm(qasm2_str, filepath=None):
 
     """
