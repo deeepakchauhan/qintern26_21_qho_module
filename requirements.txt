@@ -1,0 +1,14 @@
+qiskit==2.5.1
+qiskit-aer
+qiskit-algorithms
+qiskit-ibm-runtime
+pytest
+openfermion
+pennylane
+pennylane-qiskit
+cirq
+scipy
+numpy
+matplotlib
+sympy
+jupyter
