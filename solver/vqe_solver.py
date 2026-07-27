@@ -284,3 +284,30 @@ def run_vqe_qiskit(qubit_operator, qasm2_string, n_qubits,
 
     
 
+
+# ------------------------------ COMPARISON LOGIC BETWEEN CIRQ and QISKIT ------------------------------
+
+def cross_check_vqe(config: dict, maxiter: int = 200) -> dict:
+
+    """
+    - Runs VQE via both Cirq and Qiskit 
+    - on the same Hamiltonian, and returns comparison results
+
+    """
+
+    cirq_result = run_vqe_using_cirq(config, maxiter=maxiter)
+    qiskit_result = run_vqe_qiskit(config, maxiter=maxiter)
+
+    return {
+
+        'cirq_energy'       : cirq_result["ground_state_energy"],
+        'qiskit_energy'     : qiskit_result["ground_state_energy"],
+        'discrepancy'       : abs(
+            cirq_result["ground_state_energy"] - qiskit_result["ground_state_energy"]
+        ),
+
+        'cirq_result'       : cirq_result,
+        'qiskit_result'     : qiskit_result,
+
+    }
+
