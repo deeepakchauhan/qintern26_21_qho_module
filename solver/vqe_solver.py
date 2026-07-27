@@ -6,6 +6,7 @@
 - and, runs the variational optimisation, and returns the physical results.
 - basically, it finds the lowest energy state of the nuclear Hamiltonian 
 - using the variational quantum eigensolver algorithm.
+
 """
 
 import qiskit
@@ -16,6 +17,12 @@ import sympy
 import numpy as np
 from scipy.optimize import minimize
 from openfermion import get_sparse_operator
+
+from hamiltonian.nuclear_hamiltonian import build_nuclear_hamiltonian
+from ansatz.nuclear_ansatz import (
+    build_nuclear_ansatz,
+    export_to_qasm2,
+)
 
 
 
@@ -46,10 +53,10 @@ def qubit_operator_to_pauli_sum(qubit_operator, qubits):
 
         else:
             pauli_string = cirq.PauliString(
-                {qubits[index]: pauli_map[pauli] for index, pauli in term},
-                coeff = coeff
+                {qubits[index]: pauli_map[pauli] for index, pauli in term}
+                
             )
-            pauli_sum += pauli_string
+            pauli_sum += coeff * pauli_string
 
 
     return pauli_sum    
@@ -66,8 +73,20 @@ def exact_diagonalise(qubit_operator, n_qubits):
 
     """
 
-    H_matrix = get_sparse_operator(qubit_operator, n_qubits=n_qubits).toarray()
+    H_matrix = get_sparse_operator(
+        qubit_operator,
+        n_qubits=n_qubits
+    ).toarray()
+
+    print("\n ---------- Exact Hamiltonian Matrix ----------")
+    print(H_matrix)
+
     evals, evecs = np.linalg.eigh(H_matrix)
+
+    print("\n ---------- Exact Eigenvalues ----------")
+    print(evals)
+
+
 
     return float(evals[0].real), evecs[:, 0]
 
@@ -99,8 +118,12 @@ def compute_fidelity(psi_exact, psi_vqe):
 
 
 # ----------------------- MAIN PATH: VQE USING CIRQ SIMULATOR -----------------------
-def run_vqe_using_cirq(qubit_operator, cirq_circuit, symbols, qubits,
-                       optimizer="COBYLA", max_iter=5000, seed=42):
+def run_vqe_using_cirq(
+        config: dict,
+        optimizer="COBYLA",
+        max_iter=500,
+        seed=42,
+):
 
     """
     - After OpenFermion builds H and Cirq builds the circuit
@@ -108,10 +131,7 @@ def run_vqe_using_cirq(qubit_operator, cirq_circuit, symbols, qubits,
     - It is the primary execution Path
 
     Args:
-        qubit_operator : The Hamiltonian
-        cirq_circuit   : symbolic ansatz
-        symbols        : variational parameters
-        qubits         : list of cirq.LineQubit
+        
         optimizer      : 'COBYLA' or 'SLSQP'
         max_iter       : maximum optimiser iterations
         seed           : random seed
@@ -124,6 +144,18 @@ def run_vqe_using_cirq(qubit_operator, cirq_circuit, symbols, qubits,
 
     """
 
+    # Build Hamiltonian
+    qubit_operator, metadata = build_nuclear_hamiltonian(**config)
+
+    print("\nMetadata:")
+    print(metadata)
+
+
+    # Build Ansatz
+    cirq_circuit, symbols, qubits = build_nuclear_ansatz(
+        n_modes=config["n_modes"]
+    )
+
     np.random.seed(seed)
     num_params = len(symbols)
     history    = []
@@ -134,6 +166,14 @@ def run_vqe_using_cirq(qubit_operator, cirq_circuit, symbols, qubits,
 
     # Convert Hamiltonian to cirq.PauliSum for expectation value 
     pauli_sum = qubit_operator_to_pauli_sum(qubit_operator, qubits)
+
+    print("\n ---------- Hamiltonian ----------")
+    print(qubit_operator)
+
+    print("\n ---------- Cirq PauliSum ----------")
+    print(pauli_sum)
+
+
 
     def cost(theta):
         """
@@ -157,7 +197,7 @@ def run_vqe_using_cirq(qubit_operator, cirq_circuit, symbols, qubits,
         # Compute expectation value
         energy = pauli_sum.expectation_from_state_vector(
             state_vector,
-            qubit_maps = {q: i for i, q in enumerate(qubits)}
+            qubit_map = {q: i for i, q in enumerate(qubits)}
         ).real
 
         history.append(float(energy))
@@ -195,16 +235,32 @@ def run_vqe_using_cirq(qubit_operator, cirq_circuit, symbols, qubits,
     fidelity   = compute_fidelity(psi_exact, psi_vqe)
 
 
+
+    if abs(e0_exact) > 1e-12:
+        error_pct = abs(e0_exact - opt.fun) / abs(e0_exact) * 100
+
+    else:
+        error_pct = abs(e0_exact - opt.fun)
+
+
+    print("\n ---------- OPTIMIZATION ----------")
+    print("Exact Energy          :", e0_exact)
+    print("VQE Energy            :", opt.fun)
+    print("Success               :", opt.success)
+    print("Function evaluations  :", opt.nfev)
+    print("Parameters            :", opt.x) 
+
+
     return {
 
-        'energy'        : float(opt.fun),
-        'exact_energy'  : float(e0_exact),
-        'error'         : abs(e0_exact - opt.fun) / abs(e0_exact)  * 100,
-        'fidelity'      : fidelity,
-        'optimal_params': opt.x,
-        'history'       : history,
-        'n_iterations'  : len(history),
-        'converged'     : opt.success,
+        'ground_state_energy'        : float(opt.fun),
+        'exact_ground_energy'        : float(e0_exact),
+        'error_pct'                  : error_pct,
+        'fidelity'                   : fidelity,
+        'optimal_params'             : opt.x,
+        'history'                    : history,
+        'n_iterations'               : len(history),
+        'success'                    : bool(opt.success),
     }
 
 
@@ -212,13 +268,34 @@ def run_vqe_using_cirq(qubit_operator, cirq_circuit, symbols, qubits,
 
 
 # -------------------------- VALIDATION PATH: Qiksit ESTIMATORV2 --------------------------
-def run_vqe_qiskit(qubit_operator, qasm2_string, n_qubits,
-                   optimizer='COBYLA', max_iter=500, seed=42):
+def run_vqe_qiskit(
+        config: dict,
+        optimizer="COBYLA",
+        max_iter = 500,
+        seed = 42,
+):
         
     """
     - used to cross check cirq pipeline path
 
     """
+
+
+
+
+    qubit_operator, metadata = build_nuclear_hamiltonian(**config)
+
+    cirq_circuit, symbols, qubits = build_nuclear_ansatz(
+        config["n_modes"]
+    )
+
+    qasm2_string = export_to_qasm2(cirq_circuit)
+
+    n_qubits = config["n_modes"]
+
+
+
+
 
     np.random.seed(seed)
     history = []
@@ -265,21 +342,29 @@ def run_vqe_qiskit(qubit_operator, qasm2_string, n_qubits,
         qiskit_circuit.parameters[i]: float(opt.x[i])
         for i in range(num_params)
     }
+
+
     bound_opt   = qiskit_circuit.assign_parameters(param_dict)
     psi_vqe     = Statevector(bound_opt).data
     fidelity    = compute_fidelity(psi_exact, psi_vqe)
 
 
+    if(e0_exact) > 1e-12:
+        error_pct = abs(e0_exact - opt.fun) / abs(e0_exact) * 100
+
+    else:
+        error_pct = abs(e0_exact - opt.fun)
+
 
     return {
-        'energy'         : float(opt.fun),
-        'exact_energy'   : float(e0_exact),
-        'error_pct'      : abs(e0_exact - opt.fun) / abs(e0_exact) * 100,
-        'fidelity'       : fidelity,
-        'optimal_params' : opt.x,
-        'history'        : history,
-        'n_iterations'   : len(history),
-        'converged'      : opt.success,
+        'ground_state_energy'         : float(opt.fun),
+        'exact_ground_energy'         : float(e0_exact),
+        'error_pct'                   : error_pct,
+        'fidelity'                    : fidelity,
+        'optimal_params'              : opt.x,
+        'history'                     : history,
+        'n_iterations'                : len(history),
+        'success'                     : bool(opt.success),
     }
 
     
@@ -287,7 +372,10 @@ def run_vqe_qiskit(qubit_operator, qasm2_string, n_qubits,
 
 # ------------------------------ COMPARISON LOGIC BETWEEN CIRQ and QISKIT ------------------------------
 
-def cross_check_vqe(config: dict, maxiter: int = 200) -> dict:
+def cross_check_vqe(
+        config,
+        max_iter=200
+):
 
     """
     - Runs VQE via both Cirq and Qiskit 
@@ -295,14 +383,23 @@ def cross_check_vqe(config: dict, maxiter: int = 200) -> dict:
 
     """
 
-    cirq_result = run_vqe_using_cirq(config, maxiter=maxiter)
-    qiskit_result = run_vqe_qiskit(config, maxiter=maxiter)
+    cirq_result = run_vqe_using_cirq(
+        config, 
+        max_iter=max_iter
+    )
+
+
+    qiskit_result = run_vqe_qiskit(
+        config, 
+        optimal_params=cirq_result["optimal_params"]
+    ) 
+
 
     return {
 
-        'cirq_energy'       : cirq_result["ground_state_energy"],
+        'cir_energy'       : cirq_result["ground_state_energy"],
         'qiskit_energy'     : qiskit_result["ground_state_energy"],
-        'discrepancy'       : abs(
+        'difference'       : abs(
             cirq_result["ground_state_energy"] - qiskit_result["ground_state_energy"]
         ),
 

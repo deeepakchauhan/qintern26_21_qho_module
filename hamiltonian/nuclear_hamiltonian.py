@@ -96,10 +96,10 @@ def to_qiskit_validation_operator(openfermion_qubit_op, n_modes):
 
         pauli_str = ["I"] * n_modes
 
-    for qubit_idx, pauli_char in term:
-        pauli_str[n_modes - 1 - qubit_idx] = pauli_char
+        for qubit_idx, pauli_char in term:
+            pauli_str[n_modes - 1 - qubit_idx] = pauli_char
 
-    pauli_list.append((''.join(pauli_str), coeff))
+        pauli_list.append((''.join(pauli_str), coeff))
 
 
     return SparsePauliOp.from_list(pauli_list).simplify()
