@@ -54,24 +54,25 @@ predefined_hamiltonians = {
 
 
 # ------------------------------ LAYER 1: FREE QHO ----------------------------------------
-def build_free_qho(n_modes, omega=1.0):
+def build_free_qho(n_modes: int, omega: float = 1.0):
 
     """
     Free QHO for n single particle levels.
 
     Args: 
-        n_modes: int - number of qubits
-        omega: float - oscillator frequency
+        n_modes: number of qubits
+        omega  : oscillator frequency
 
     Returns:
         OpenFermion QubitOperator
     
     """
 
-    H = QubitOperator(n_modes, omega=1.0)
+    H = QubitOperator()
 
     for i in range(n_modes):
-        H += omega / 2.0 * QubitOperator("")
+        H += (omega / 2.0) * QubitOperator("")
+
         H += (-omega / 2.0) * QubitOperator(f"Z{i}")
 
     return H
@@ -123,7 +124,7 @@ def build_pairing_interaction(n_modes, coupling):
     for i in range(n_modes):
         for j in range(i + 1, n_modes):
             H += (-coupling / 2.0) * QubitOperator(f"X{i} X{j}")
-            H += (-coupling / 2.0) * QubitOperator(f"Y{i} Y{i}")
+            H += (-coupling / 2.0) * QubitOperator(f"Y{i} Y{j}")
 
     return H
 
@@ -158,7 +159,12 @@ def build_spinorbit_interaction(n_modes, kappa):
 
 
 # ------------------------------ FULL HAMILTONIAN: COMBINING ALL THE ABOVE LAYERS ------------------------------------
-def build_nuclear_hamiltonian(n_modes, omega=1.0, interactions=None, time=None):
+def build_nuclear_hamiltonian(
+        n_modes: int, 
+        omega: float = 1.0, 
+        interactions=None, 
+        time=None
+):
 
     """
     Args:
@@ -174,33 +180,36 @@ def build_nuclear_hamiltonian(n_modes, omega=1.0, interactions=None, time=None):
     if interactions is None:
         interactions = []
 
+    # Start from the free hamiltonian
     H = build_free_qho(n_modes, omega)
 
     for term in interactions:
         strength = term['strength']
 
-        if term.get('time-dep') and time is not None:
-            strength += np.sin(time)
+        if term.get('time_dep', False) and time is not None:
+            strength *= np.sin(time)
 
         if np.isclose(strength, 0.0):
             continue
 
-        if term['type'] == 'pairing':
+
+        interaction_type = term['type'].lower()    
+        if interaction_type == 'pairing':
             H += build_pairing_interaction(n_modes, strength)
-        elif term['type'] == 'spinorbit':
+        elif interaction_type == 'spinorbit':
             H += build_spinorbit_interaction(n_modes, strength)
         else:
-            raise ValueError(f"UNKNOWN INTERACTION TYPE: {term['type']}")
+            raise ValueError(f"UNKNOWN INTERACTION TYPE: {interaction_type}")
 
 
 
-        # validation only checks Qiskit Conversion and exact diagonalization benchmarks
+    # validation only checks Qiskit Conversion and exact diagonalization benchmarks
 
-        qiskit_op = to_qiskit_validation_operator(H, n_modes)
-        exact_eigenvalues = np.linalg.eigenvalsh(qiskit_op.to_matrix()).to_list()
+    qiskit_op = to_qiskit_validation_operator(H, n_modes)
+    exact_eigenvalues = np.linalg.eigvalsh(qiskit_op.to_matrix()).tolist()
 
 
-        metadata = {
+    metadata = {
 
             "n_qubits": n_modes,
             "n_terms" : len(H.terms),

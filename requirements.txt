@@ -13,3 +13,4 @@ matplotlib
 sympy
 jupyter
 pyqasm 
+amazon-braket-sdk

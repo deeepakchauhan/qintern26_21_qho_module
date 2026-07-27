@@ -45,7 +45,7 @@ def test_vqe_energy(simple_config, exact_ground_energy):
 
     """VQE (main Cirq path) should converge close to the exact ground state energy"""
 
-    result = run_vqe_using_cirq(simple_config, maxiter=200)
+    result = run_vqe_using_cirq(simple_config, max_iter=200)
     error = abs(result["ground_state_energy"] - exact_ground_energy)
 
     assert error < 1e-2, f"VQE energy off by {error}, exceeds tolerance"
@@ -63,7 +63,7 @@ def test_variational_bound(simple_config, exact_ground_energy):
 
     """
 
-    result = run_vqe_using_cirq(simple_config, maxiter=200)
+    result = run_vqe_using_cirq(simple_config, max_iter=200)
 
     assert result["ground_state_energy"] >= exact_ground_energy - 1e-6, (
 
@@ -83,7 +83,7 @@ def test_vqe_convergence(simple_config):
 
     """
 
-    result = run_vqe_using_cirq(simple_config, maxiter=200)
+    result = run_vqe_using_cirq(simple_config, max_iter=200)
 
     assert result["success"] is True
     assert result["n_iterations"] < 200, "VQE used up to full iteration budget without converging"
@@ -100,7 +100,7 @@ def test_cirq_and_qiskit_paths(simple_config):
     
     """
 
-    cross_check_result= cross_check_vqe(simple_config, maxiter=200)
+    cross_check_result= cross_check_vqe(simple_config, max_iter=200)
     discrepancy = abs(
         cross_check_result["cir_energy"] - cross_check_result["qiskit_energy"]
     )
@@ -116,7 +116,7 @@ def test_cirq_and_qiskit_paths(simple_config):
 
 
 # ------------------------------ TEST 5: BEHAVIOUR ON A SLIGHTLY HARDER CASE (with Interaction) ------------------------------
-def test_vqe_with_pairing_interactio():
+def test_vqe_with_pairing_interaction():
 
     """ 
     Sanity check:
@@ -133,7 +133,7 @@ def test_vqe_with_pairing_interactio():
     H, metadata = build_nuclear_hamiltonian(**config)
     exact_energy = min(metadata["exact_eigenvalues"])
 
-    result = run_vqe_using_cirq(config, maxiter=300)
+    result = run_vqe_using_cirq(config, max_iter=300)
     error = abs(result["ground_state_energy"] - exact_energy)
 
     assert error < 1e-2
