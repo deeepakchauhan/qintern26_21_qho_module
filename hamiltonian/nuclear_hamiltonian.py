@@ -185,7 +185,7 @@ def build_spinorbit_interaction(n_modes, kappa):
 
 
 
-def build_oscillator_hamiltonian(n_modes, omega=1.0, interactions=None, time=None)
+def build_oscillator_hamiltonian(n_modes, omega=1.0, interactions=None, time=None):
 
     """
     - This represents the combined hamiltonian oscillator
