@@ -1,9 +1,9 @@
 """
------------------------------- QHO SIMULATION ENGINE ------------------------------
+---------------------------------------- QHO SIMULATION ENGINE ----------------------------------------
 
-    PyQASM Utility layer:
-    - It loads, validates, and transpiles QASM2 circuits via PyQASM
-    - It prepares circuits for hardware submission on IBM, Google, or AWS.
+    - This module checks that the exported QASM is correct and 
+    - converts it into a form that different hardware SDKs can understand.
+    - It is basically preparing a quantum program for execution.
 
     In the Pipeline:
     Cirq circuit -> export_to_qasm2() -> pyqasm_utils.py -> IBM / Google / AWS
@@ -13,7 +13,9 @@
 from pyqasm import loads, dumps
 
 
-#  ------------------------------ RAW QASM2 TO CLEAN VERIFIED QASM2 STRING ------------------------------ 
+
+
+#  ---------------------------------------- RAW QASM2 TO CLEAN VERIFIED QASM2 STRING ---------------------------------------- 
 def validate_qasm2(qasm2_string):
 
     """
@@ -30,17 +32,33 @@ def validate_qasm2(qasm2_string):
     module = loads(qasm2_string)
     module.unroll()
     validated = dumps(module)
-    print("PyQASM Validation is DONE!")
+    print("PyQASM Validation completed successfully!")
     return validated
 
 
 
 
-# ------------------------------ CONVERT TO FORMAT REQUIRED BY CHOSEN BACKEND ------------------------------
+
+# --------------------------------------- CONVERT TO FORMAT REQUIRED BY CHOSEN BACKEND ----------------------------------------
+def cirq_from_qasm(qasm2_string):
+    """
+    - Imports QASM2 string back to cirq
+    - Used when google backend is selected
+
+    """
+
+    from cirq.contrib.qasm_import import circuit_from_qasm
+    return circuit_from_qasm(qasm2_string)
+
+
+
+
 def qasm2_to_backend(validated_qasm, backend='ibm'):
 
     """
-    - Prepares a validated QASM2 circuit for a IBM backend.
+    - Prepare a validated OpenQASM2 circuit for the selected backend.
+    - Supported backends: IBM, Google, and AWS. 
+
 
     Returns:
     - backend_circuit : backend specific circuit object
@@ -48,19 +66,19 @@ def qasm2_to_backend(validated_qasm, backend='ibm'):
     """
 
 
+
     if backend == 'ibm':
         from qiskit import QuantumCircuit
         circuit = QuantumCircuit.from_qasm_str(validated_qasm)
 
         print(f"Circuit ready for IBM Backend: "
-              f"{circuit.num_qubits} qubits, depth {circuit.depth}")
+              f"{circuit.num_qubits} qubits, depth {circuit.depth()}")
 
         return circuit
 
 
     elif backend == 'google':
-        import cirq
-        circuit = cirq.read_json(json_text=validated_qasm)
+        circuit = cirq_from_qasm(validated_qasm)
 
         print("Quantum Circuit is ready for Google Backend.")
 
@@ -78,13 +96,14 @@ def qasm2_to_backend(validated_qasm, backend='ibm'):
     else:
         raise ValueError(
             f"Unknown backend: '{backend}'. "
-            f"Supported Backends: 'IBM', 'Google', 'AWS' "
+            f"Supported Backends: 'ibm', 'google', 'aws' "
         )
 
 
 
 
-# ------------------------------ BASIC INFORMATION ABOUT THE CIRCUIT ------------------------------ 
+
+# ---------------------------------------- BASIC INFORMATION ABOUT THE CIRCUIT ---------------------------------------- 
 def get_circuit_info(validated_qasm):
 
     """
